@@ -15,11 +15,11 @@ size_t tam_vec_len(const tam_vec vec);
 size_t tam_vec_cap(const tam_vec vec);
 
 // Implementation details for common vector utils
-#define TAM_VECTOR_IMPLEMENTATION
 #ifdef TAM_VECTOR_IMPLEMENTATION
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define TAMINT__VECTOR_BASE_ALLOC 8
 #define TAMINT__VECTOR_GROW_FACTOR 1.618
@@ -32,11 +32,15 @@ typedef struct tamint__vec_header {
   size_t elem_size;
 } tamint__vec_header;
 
-static tam_vec tamint__vec_alloc(const size_t len, const size_t cap,
-                                 const size_t size) {
+tam_vec tamint__vec_alloc(const size_t len, const size_t cap,
+                          const size_t size) {
+  size_t alloc_size = cap * size + sizeof(tamint__vec_header);
+
   // Allocate memory for data + header
-  tamint__vec_header* data = (tamint__vec_header*)calloc(
-      cap + sizeof(tamint__vec_header) / size, size);
+  tamint__vec_header* data = malloc(alloc_size);
+
+  // zero memory
+  memset(data, 0, alloc_size);
 
   // Write header info
   *data = (tamint__vec_header){.len = len, .cap = cap, .elem_size = size};
@@ -55,12 +59,22 @@ void tam_vec_free(tam_vec vec) { free(tam_vec_header(vec)); }
 size_t tam_vec_cap(const tam_vec vec) { return tam_vec_header(vec)->cap; }
 size_t tam_vec_len(const tam_vec vec) { return tam_vec_header(vec)->len; }
 
-static tam_vec tam_vec_grow(tam_vec vec) {
+tam_vec tam_vec_grow(tam_vec vec) {
   tamint__vec_header* header = tam_vec_header(vec);
   size_t size = header->elem_size;
-  size_t new_cap = (size_t)(header->cap * TAMINT__VECTOR_GROW_FACTOR);
-  header = (tamint__vec_header*)realloc(
-      header, new_cap * size + sizeof(tamint__vec_header));
+  size_t new_cap =
+      (size_t)((double)header->cap * TAMINT__VECTOR_GROW_FACTOR + 0.5);
+
+  tamint__vec_header* new_header =
+      realloc(header, new_cap * size + sizeof(tamint__vec_header));
+
+  if (!new_header) {
+    printf("Vector realloc failed!");
+    exit(1);
+  } else {
+    header = new_header;
+  }
+
   // zero memory
   header->cap = new_cap;
   char* new_vec = (char*)(header + 1);
@@ -104,7 +118,7 @@ static tam_vec tam_vec_grow(tam_vec vec) {
   name name##_push(name vec, type elem) {                        \
     tamint__vec_header* header = tam_vec_header(vec);            \
     if (header->len >= header->cap) {                            \
-      vec = (name)tam_vec_grow(vec);                             \
+      vec = tam_vec_grow(vec);                                   \
       header = tam_vec_header(vec);                              \
     }                                                            \
     vec[header->len] = elem;                                     \
