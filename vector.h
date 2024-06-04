@@ -59,7 +59,8 @@ static tam_vec tam_vec_grow(tam_vec vec) {
   tamint__vec_header* header = tam_vec_header(vec);
   size_t size = header->elem_size;
   size_t new_cap = (size_t)(header->cap * TAMINT__VECTOR_GROW_FACTOR);
-  header = realloc(header, new_cap * size + sizeof(tamint__vec_header));
+  header = (tamint__vec_header*)realloc(
+      header, new_cap * size + sizeof(tamint__vec_header));
   // zero memory
   header->cap = new_cap;
   char* new_vec = (char*)(header + 1);
@@ -79,7 +80,7 @@ static tam_vec tam_vec_grow(tam_vec vec) {
   name name##_new(void);                        \
   name name##_newlen(size_t len);               \
   name name##_fill(size_t len, type elem);      \
-  void name##_push(name vec, type elem);
+  name name##_push(name vec, type elem);
 
 #ifdef TAM_VECTOR_IMPLEMENTATION
 #define TAMINT__DEFINE_VECTOR_TYPE(name, type)                   \
@@ -100,11 +101,15 @@ static tam_vec tam_vec_grow(tam_vec vec) {
     return vec;                                                  \
   }                                                              \
                                                                  \
-  void name##_push(name vec, type elem) {                        \
+  name name##_push(name vec, type elem) {                        \
     tamint__vec_header* header = tam_vec_header(vec);            \
-    if (header->len >= header->cap) vec = tam_vec_grow(vec);     \
+    if (header->len >= header->cap) {                            \
+      vec = (name)tam_vec_grow(vec);                             \
+      header = tam_vec_header(vec);                              \
+    }                                                            \
     vec[header->len] = elem;                                     \
     header->len += 1;                                            \
+    return vec;                                                  \
   }
 #else
 #define TAMINT__DEFINE_VECTOR_TYPE(name, type) ;
