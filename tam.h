@@ -5,9 +5,11 @@
 #ifdef TAM_IMPLEMENTATION
 
 #define TAM_STRING_IMPLEMENTATION
+#define TAM_VECTOR_IMPLEMENTATION
 
 #endif  // TAM_IMPLEMENTATION
 
 #include "string.h"
+#include "vector.h"
 
 #endif  // TAM_INCLUDE_H
