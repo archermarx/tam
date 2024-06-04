@@ -1,0 +1,13 @@
+#ifndef TAM_INCLUDE_H
+#define TAM_INCLUDE_H
+
+// define all sub-implementations
+#ifdef TAM_IMPLEMENTATION
+
+#define TAM_STRING_IMPLEMENTATION
+
+#endif  // TAM_IMPLEMENTATION
+
+#include "string.h"
+
+#endif  // TAM_INCLUDE_H
