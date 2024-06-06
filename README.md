@@ -3,7 +3,10 @@
 ## Contents:
 
 `tam.h`: includes all libraries below
+
 `string.h`: a basic dynamic string, inspired by [`sds`](https://github.com/antirez/sds)
+
+`vector.h`: a basic dynamic array, implemented similarly to the string. Supports multiple types.
 
 ## Usage:
 Include the libraries in your project as normal.
