@@ -8,6 +8,8 @@
 
 `vector.h`: a basic dynamic array, implemented similarly to the string. Supports multiple types.
 
+`memory.h`: wrappers for malloc and realloc
+
 ## Usage:
 Include the libraries in your project as normal.
 In one (and only one) source file, you must create a `#define` to instantiate the implementation, as shown below.
