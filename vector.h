@@ -3,135 +3,69 @@
 
 #include <stddef.h>
 
-typedef void* tam_vec;
-
-// Free a vector
-void tam_vec_free(tam_vec vec);
-
-// Get the vector's length
-size_t tam_vec_len(const tam_vec vec);
-
-// Get the vector's capacity
-size_t tam_vec_cap(const tam_vec vec);
-
-// Implementation details for common vector utils
-#ifdef TAM_VECTOR_IMPLEMENTATION
-
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
-
-#define TAMINT__VECTOR_BASE_ALLOC 8
-#define TAMINT__VECTOR_GROW_FACTOR 1.618
-
-// COMMON UTILITIES FOR ALL VECTORS
-// Header info for vector
-typedef struct tamint__vec_header {
+typedef struct tam__vec_header {
   size_t len;
   size_t cap;
-  size_t elem_size;
-} tamint__vec_header;
+  char data[0];
+} tam__vec_header;
 
-tam_vec tamint__vec_alloc(const size_t len, const size_t cap,
-                          const size_t size) {
-  size_t alloc_size = cap * size + sizeof(tamint__vec_header);
+#define tam__vec_hdr(v) ((tam__vec_header*)((char*)(v) - offsetof(tam__vec_header, data)))
+#define tam__vec_fits(v, n) (tam_vec_len(v) + (n) <= tam_vec_cap(v))
+#define tam__vec_fit(v, n) (tam__vec_fits((v), (n)) ? 0 : ((v) = tam__vec_grow((v), tam_vec_len(v) + (n), sizeof(*(v)))))
 
-  // Allocate memory for data + header
-  tamint__vec_header* data = malloc(alloc_size);
+#define tam_vec_push(v, x) do {tam__vec_fit((v), 1), (v)[tam__vec_hdr(v)->len++] = (x);} while (0) 
+#define tam_vec_free(v) do {(v) ? (free(tam__vec_hdr(v)), (v) = NULL) : 0;} while (0)
+#define tam_vec_len(v) ((v) ? tam__vec_hdr(v)->len : 0)
+#define tam_vec_cap(v) ((v) ? tam__vec_hdr(v)->cap : 0)
+#define tam_vec_new(type, len) (tam__vec_new((len), sizeof(type)))
 
-  // zero memory
-  memset(data, 0, alloc_size);
+void* tam__vec_grow(const void *vec, size_t new_len, size_t elem_size);
+void *tam__vec_new(size_t len, size_t elem_size);
 
-  // Write header info
-  *data = (tamint__vec_header){.len = len, .cap = cap, .elem_size = size};
-
-  // Increment past header to get to data
-  tam_vec result = (tam_vec)(data + 1);
-
-  return result;
-}
-
-static tamint__vec_header* tam_vec_header(const tam_vec vec) {
-  return (tamint__vec_header*)vec - 1;
-}
-
-void tam_vec_free(tam_vec vec) { free(tam_vec_header(vec)); }
-size_t tam_vec_cap(const tam_vec vec) { return tam_vec_header(vec)->cap; }
-size_t tam_vec_len(const tam_vec vec) { return tam_vec_header(vec)->len; }
-
-tam_vec tam_vec_grow(tam_vec vec) {
-  tamint__vec_header* header = tam_vec_header(vec);
-  size_t size = header->elem_size;
-  size_t new_cap =
-      (size_t)((double)header->cap * TAMINT__VECTOR_GROW_FACTOR + 0.5);
-
-  tamint__vec_header* new_header =
-      realloc(header, new_cap * size + sizeof(tamint__vec_header));
-
-  if (!new_header) {
-    printf("Vector realloc failed!");
-    exit(1);
-  } else {
-    header = new_header;
-  }
-
-  // zero memory
-  header->cap = new_cap;
-  char* new_vec = (char*)(header + 1);
-  for (size_t i = header->len * size; i < new_cap * size; i++) {
-    new_vec[i] = 0;
-  }
-  vec = (tam_vec)new_vec;
-  return vec;
-}
-
-#endif  // TAM_VECTOR_IMPLEMENTATION
-
-// Type-specific utilities
-
-#define TAMINT__DECLARE_VECTOR_TYPE(name, type) \
-  typedef type* name;                           \
-  name name##_new(void);                        \
-  name name##_newlen(size_t len);               \
-  name name##_fill(size_t len, type elem);      \
-  name name##_push(name vec, type elem);
-
+// Implementation
+#define TAM_VECTOR_IMPLEMENTATION
 #ifdef TAM_VECTOR_IMPLEMENTATION
-#define TAMINT__DEFINE_VECTOR_TYPE(name, type)                   \
-  name name##_new(void) {                                        \
-    return (name)tamint__vec_alloc(0, TAMINT__VECTOR_BASE_ALLOC, \
-                                   sizeof(type));                \
-  }                                                              \
-                                                                 \
-  name name##_newlen(size_t len) {                               \
-    return (name)tamint__vec_alloc(len, len, sizeof(type));      \
-  }                                                              \
-                                                                 \
-  name name##_fill(size_t len, type elem) {                      \
-    name vec = (name)tamint__vec_alloc(len, len, sizeof(type));  \
-    for (size_t i = 0; i < len; i++) {                           \
-      vec[i] = (type)elem;                                       \
-    }                                                            \
-    return vec;                                                  \
-  }                                                              \
-                                                                 \
-  name name##_push(name vec, type elem) {                        \
-    tamint__vec_header* header = tam_vec_header(vec);            \
-    if (header->len >= header->cap) {                            \
-      vec = tam_vec_grow(vec);                                   \
-      header = tam_vec_header(vec);                              \
-    }                                                            \
-    vec[header->len] = elem;                                     \
-    header->len += 1;                                            \
-    return vec;                                                  \
-  }
-#else
-#define TAMINT__DEFINE_VECTOR_TYPE(name, type) ;
-#endif  // TAM_VECTOR_IMPLEMENTATION
 
-#define TAM_DECLARE_VECTOR_TYPE(name, type) \
-  TAMINT__DECLARE_VECTOR_TYPE(name, type)   \
-  TAMINT__DEFINE_VECTOR_TYPE(name, type)
+// Includes for implementation
+#include <assert.h>
+#include <stdlib.h>
+#include <tam/memory.h>
+
+#define TAM__VECTOR_BASE_ALLOC 8
+#define TAM__VECTOR_GROW_FACTOR 1.618
+
+#include <stdio.h>
+
+void* tam__vec_grow(const void *vec, size_t new_len, size_t elem_size) {
+  size_t new_cap = 1 + (size_t)(TAM__VECTOR_GROW_FACTOR * (double)tam_vec_cap(vec));
+  if (new_cap < new_len) {
+    new_cap = new_len;
+  }
+  assert(new_len <= new_cap);
+  size_t new_size = offsetof(tam__vec_header, data) + new_cap*elem_size;
+  tam__vec_header *new_header;
+  if (vec) {
+    new_header = tam_reallocate(tam__vec_hdr(vec), new_size);
+  } else {
+    new_header = tam_allocate(new_size);
+    new_header->len = 0;
+  }
+  new_header->cap = new_cap;
+  return new_header->data;
+}
+
+void *tam__vec_new(size_t len, size_t elem_size) {
+  size_t cap = len;
+  tam__vec_header *header;
+  size_t size = offsetof(tam__vec_header, data) + cap * elem_size;
+  header = tam_allocate(size);
+  memset(header->data, 0, cap * elem_size);
+  header->len = len;
+  header->cap = cap;
+  return header->data;
+}
+
+#endif // TAM_VECTOR_IMPLEMENTATION
 
 #endif  // TAM_VECTOR_INCLUDE_H
 
