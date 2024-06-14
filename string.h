@@ -22,6 +22,16 @@ typedef char* tam_str;
 tam_str tam_strnew(const char* s);
 
 /**
+ * Create a new string from a char* range
+ */
+tam_str tam_substr(const char* start, const char* end);
+
+/**
+ * Duplicate a string
+ */
+tam_str tam_strdup(const tam_str s);
+
+/**
  * Get length of a string
  */
 size_t tam_strlen(const tam_str s);
@@ -45,6 +55,11 @@ tam_str tam_strcat(const tam_str left, const char* right);
  */
 tam_str tam_strcatstr(const tam_str left, const tam_str right);
 
+/**
+ * Check if a string equals another string
+ */
+int tam_strcmp(const tam_str left, const tam_str right);
+
 #ifdef __cplusplus
 }
 #endif
@@ -57,15 +72,15 @@ tam_str tam_strcatstr(const tam_str left, const tam_str right);
 
 // String header
 // Currently just contains length, but could in principle contain other data
-typedef struct tamint__strheader {
+typedef struct tam__strheader {
   size_t len;
-} tamint__strheader;
+} tam__strheader;
 
-static tam_str tamint__stralloc(const size_t len) {
+static tam_str tam__stralloc(const size_t len) {
   // memory to allocate
   // store length and capacity before allocation
   // Store room for null terminator as well
-  size_t header_bytes = sizeof(tamint__strheader) / sizeof(char);
+  size_t header_bytes = sizeof(tam__strheader) / sizeof(char);
   size_t bytes_to_alloc = header_bytes + len + 1;
 
   // Explicit cast for c++ compatability
@@ -73,8 +88,8 @@ static tam_str tamint__stralloc(const size_t len) {
   char* strdata = (char*)calloc(bytes_to_alloc, sizeof(char));
 
   // write header data
-  tamint__strheader* header = (tamint__strheader*)strdata;
-  header[0] = (tamint__strheader){.len = len};
+  tam__strheader* header = (tam__strheader*)strdata;
+  header[0] = (tam__strheader){.len = len};
 
   // Increment pointer past capacity and length to start of string
   tam_str result = strdata + header_bytes;
@@ -83,18 +98,24 @@ static tam_str tamint__stralloc(const size_t len) {
   return result;
 }
 
-static void tamint__strncpy(tam_str dst, const char* src, const size_t n) {
+static void tam__strncpy(tam_str dst, const char* src, const size_t n) {
   // Fill string data
   for (size_t i = 0; i < n; i++) {
     dst[i] = src[i];
   }
 }
 
-static tam_str tamint__strnewlen(const char* s, const size_t len) {
+static tam_str tam__strnewlen(const char* s, const size_t len) {
   // Allocate memory for string and fill header
-  tam_str result = tamint__stralloc(len);
-  tamint__strncpy(result, s, len);
+  tam_str result = tam__stralloc(len);
+  tam__strncpy(result, s, len);
   return result;
+}
+
+tam_str tam_substr(const char* start, const char* end) {
+  // Allocate memory for string and fill header
+  size_t len = (size_t)(end - start);
+  return tam__strnewlen(start, len);
 }
 
 tam_str tam_strnew(const char* s) {
@@ -102,27 +123,32 @@ tam_str tam_strnew(const char* s) {
   size_t len = strlen(s);
 
   // Return string
-  return tamint__strnewlen(s, len);
+  return tam__strnewlen(s, len);
+}
+
+tam_str tam_strdup(const tam_str s) {
+  size_t len = tam_strlen(s);
+  return tam__strnewlen(s, len);
 }
 
 // Get the header location
-static tamint__strheader* tamint__getstrheader(const tam_str s) {
-  return (tamint__strheader*)s - 1;
+static tam__strheader* tam__getstrheader(const tam_str s) {
+  return (tam__strheader*)s - 1;
 }
 
 size_t tam_strlen(const tam_str s) {
-  tamint__strheader* header = tamint__getstrheader(s);
+  tam__strheader* header = tam__getstrheader(s);
   return header->len;
 }
 
-void tam_strfree(tam_str s) { free(tamint__getstrheader(s)); }
+void tam_strfree(tam_str s) { free(tam__getstrheader(s)); }
 
 tam_str tam_strcat(const tam_str left, const char* right) {
   size_t left_len = tam_strlen(left);
   size_t right_len = strlen(right);
-  tam_str result = tamint__stralloc(left_len + right_len);
-  tamint__strncpy(result, left, left_len);
-  tamint__strncpy(result + left_len, right, right_len);
+  tam_str result = tam__stralloc(left_len + right_len);
+  tam__strncpy(result, left, left_len);
+  tam__strncpy(result + left_len, right, right_len);
   return result;
 }
 
@@ -132,10 +158,22 @@ tam_str tam_strcatstr(const tam_str left, const tam_str right) {
   size_t left_len = tam_strlen(left);
   size_t right_len = tam_strlen(right);
 
-  tam_str result = tamint__stralloc(left_len + right_len);
-  tamint__strncpy(result, left, left_len);
-  tamint__strncpy(result + left_len, right, right_len);
+  tam_str result = tam__stralloc(left_len + right_len);
+  tam__strncpy(result, left, left_len);
+  tam__strncpy(result + left_len, right, right_len);
   return result;
+}
+
+int tam_strcmp(const tam_str left, const tam_str right) {
+  size_t len = tam_strlen(left);
+  int result = 1;
+  if (len == tam_strlen(right)) {
+    for (size_t i = 0; i < len; i++) {
+      result = result && (left[i] == right[i]);
+    }
+  } else {
+    return 0;
+  }
 }
 
 #endif  // INCLUDE_TAM_STRING_H
