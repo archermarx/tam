@@ -1,6 +1,11 @@
 #ifndef TAM__MEMORY_H
 #define TAM__MEMORY_H
 
+void *tam_reallocate(void *ptr, size_t num_bytes);
+void *tam_allocate(size_t num_bytes);
+
+#ifdef TAM_MEMORY_IMPLEMENTATION
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -22,7 +27,5 @@ void *tam_allocate(size_t num_bytes) {
   return ptr;
 }
 
-
-
-
-#endif
+#endif // TAM_MEMORY_IMPLEMENTATION
+#endif // TAM__MEMORY_H

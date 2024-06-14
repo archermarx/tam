@@ -29,6 +29,10 @@ void *tam__vec_new(size_t len, size_t elem_size);
 // Includes for implementation
 #include <assert.h>
 #include <stdlib.h>
+
+#ifndef TAM_MEMORY_IMPLEMENTATION
+#define TAM_MEMORY_IMPLEMENTATION
+#endif
 #include <tam/memory.h>
 
 #define TAM__VECTOR_BASE_ALLOC 8
