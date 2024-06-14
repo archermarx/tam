@@ -1,6 +1,10 @@
 #ifndef TAM_VECTOR_INCLUDE_H
 #define TAM_VECTOR_INCLUDE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 
 typedef struct tam__vec_header {
@@ -70,6 +74,10 @@ void *tam__vec_new(size_t len, size_t elem_size) {
 }
 
 #endif // TAM_VECTOR_IMPLEMENTATION
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TAM_VECTOR_INCLUDE_H
 

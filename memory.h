@@ -1,6 +1,10 @@
 #ifndef TAM__MEMORY_H
 #define TAM__MEMORY_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void *tam_reallocate(void *ptr, size_t num_bytes);
 void *tam_allocate(size_t num_bytes);
 
@@ -28,4 +32,9 @@ void *tam_allocate(size_t num_bytes) {
 }
 
 #endif // TAM_MEMORY_IMPLEMENTATION
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif // TAM__MEMORY_H
