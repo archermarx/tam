@@ -17,11 +17,12 @@ typedef struct tam__vec_header {
 #define tam__vec_fits(v, n) (tam_vec_len(v) + (n) <= tam_vec_cap(v))
 #define tam__vec_fit(v, n) (tam__vec_fits((v), (n)) ? 0 : ((v) = tam__vec_grow((v), tam_vec_len(v) + (n), sizeof(*(v)))))
 
-#define tam_vec_push(v, x) do {tam__vec_fit((v), 1), (v)[tam__vec_hdr(v)->len++] = (x);} while (0) 
+#define tam_vec_push(v, x) (tam__vec_fit((v), 1), (v)[tam__vec_hdr(v)->len++] = (x))
 #define tam_vec_free(v) do {(v) ? (free(tam__vec_hdr(v)), (v) = NULL) : 0;} while (0)
 #define tam_vec_len(v) ((v) ? tam__vec_hdr(v)->len : 0)
 #define tam_vec_cap(v) ((v) ? tam__vec_hdr(v)->cap : 0)
 #define tam_vec_new(type, len) (tam__vec_new((len), sizeof(type)))
+#define tam_vec_end(v) ((v) + tam_vec_len(v))
 
 void* tam__vec_grow(const void *vec, size_t new_len, size_t elem_size);
 void *tam__vec_new(size_t len, size_t elem_size);
@@ -48,6 +49,9 @@ void* tam__vec_grow(const void *vec, size_t new_len, size_t elem_size) {
   size_t new_cap = 1 + (size_t)(TAM__VECTOR_GROW_FACTOR * (double)tam_vec_cap(vec));
   if (new_cap < new_len) {
     new_cap = new_len;
+  }
+  if (new_cap < 8) {
+    new_cap = 8;
   }
   assert(new_len <= new_cap);
   size_t new_size = offsetof(tam__vec_header, data) + new_cap*elem_size;

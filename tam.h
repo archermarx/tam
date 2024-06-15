@@ -10,6 +10,7 @@
 
 #endif  // TAM_IMPLEMENTATION
 
+#include "colors.h"
 #include "string.h"
 #include "vector.h"
 #include "memory.h"

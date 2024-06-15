@@ -7,6 +7,8 @@ extern "C" {
 
 void *tam_reallocate(void *ptr, size_t num_bytes);
 void *tam_allocate(size_t num_bytes);
+void *tam_allocate_elems(size_t num_elements, size_t elem_size);
+void *tam_zero_allocate_elems(size_t num_elements, size_t elem_size);
 
 #ifdef TAM_MEMORY_IMPLEMENTATION
 
@@ -27,6 +29,22 @@ void *tam_allocate(size_t num_bytes) {
   void* ptr = malloc(num_bytes);
   if (!ptr) {
     fprintf(stderr, "allocation of size %zu failed.\n", num_bytes);
+  }
+  return ptr;
+}
+
+void *tam_allocate_elems(size_t num_elements, size_t elem_size) {
+  void *ptr = malloc(num_elements * elem_size);
+  if (!ptr) {
+    fprintf(stderr, "allocation of %zu elements of size size %zu failed.\n", num_elements, elem_size);
+  }
+  return ptr;
+}
+
+void *tam_zero_allocate_elems(size_t num_elements, size_t elem_size) {
+  void *ptr = calloc(num_elements, elem_size);
+  if (!ptr) {
+    fprintf(stderr, "zero-allocation of %zu elements of size size %zu failed.\n", num_elements, elem_size);
   }
   return ptr;
 }

@@ -70,6 +70,12 @@ int tam_strcmp(const tam_str left, const tam_str right);
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef TAM_MEMORY_IMPLEMENTATION
+#define TAM_MEMORY_IMPLEMENTATION
+#endif
+
+#include <tam/memory.h>
+
 // String header
 // Currently just contains length, but could in principle contain other data
 typedef struct tam__strheader {
@@ -85,7 +91,7 @@ static tam_str tam__stralloc(const size_t len) {
 
   // Explicit cast for c++ compatability
   // calloc zeros memory so we don't need to explicitly add null-terminator
-  char* strdata = (char*)calloc(bytes_to_alloc, sizeof(char));
+  char* strdata = (char*)tam_zero_allocate_elems(bytes_to_alloc, sizeof(char));
 
   // write header data
   tam__strheader* header = (tam__strheader*)strdata;
