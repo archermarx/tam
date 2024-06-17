@@ -13,6 +13,7 @@ typedef struct tam__vec_header {
   char data[0];
 } tam__vec_header;
 
+#define vec(x) x
 #define tam__vec_hdr(v) ((tam__vec_header*)((char*)(v) - offsetof(tam__vec_header, data)))
 #define tam__vec_fits(v, n) (tam_vec_len(v) + (n) <= tam_vec_cap(v))
 #define tam__vec_fit(v, n) (tam__vec_fits((v), (n)) ? 0 : ((v) = tam__vec_grow((v), tam_vec_len(v) + (n), sizeof(*(v)))))
@@ -23,6 +24,7 @@ typedef struct tam__vec_header {
 #define tam_vec_cap(v) ((v) ? tam__vec_hdr(v)->cap : 0)
 #define tam_vec_new(type, len) (tam__vec_new((len), sizeof(type)))
 #define tam_vec_end(v) ((v) + tam_vec_len(v))
+#define tam_vec_sizeof(v) (tam_vec_len(v) == 0 ? 0 : sizeof(v[0]) * tam_vec_len(v))
 
 void* tam__vec_grow(const void *vec, size_t new_len, size_t elem_size);
 void *tam__vec_new(size_t len, size_t elem_size);
