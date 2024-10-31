@@ -227,35 +227,38 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle);
  * They do not own the string data they contain, but do allocate memory to build a linked list.
  * The user is responsible for freeing the StringBuilder using sb_free when they are done with it.
  */
-typedef struct tam_stringbuilder_t {
-    tam_slice_t slice;
-    struct tam_stringbuilder_t *next;
-} tam_stringbuilder_t;
 
-/*
- * Allocate memory for a StringBuilder
- */
-tam_stringbuilder_t *tam_sb_allocate();
+typedef struct tam_sb_node_t {
+    tam_slice_t slice;
+    struct tam_sb_node_t *next;
+} tam_sb_node_t;
+
+typedef struct tam_stringbuilder_t {
+    int64_t len;
+    struct tam_sb_node_t *head;
+    struct tam_sb_node_t *tail;
+} tam_stringbuilder_t;
 
 /*
  * Create an empty StringBuilder
  */
-tam_stringbuilder_t *tam_sb_new();
-
-/*
- * Create a StringBuilder from a slice 
- */
-tam_stringbuilder_t *tam_sb_fromslice(tam_slice_t sl);
-
-/*
- * Create a StringBuilder from a char*
- */
-tam_stringbuilder_t *sb_fromchars(const char *s);
+tam_stringbuilder_t tam_sb_new();
 
 /*
  * Free a StringBuilder instance
  */ 
 void tam_sb_deallocate(tam_stringbuilder_t *sb);
+
+
+/*
+ * Append a slice to a StringBuilder
+ */
+void tam_sb_appendslice(tam_stringbuilder_t *sb, tam_slice_t sl);
+
+/*
+ * Append a char array to a StringBuilder
+ */
+void tam_sb_appendchars(tam_stringbuilder_t *sb, const char* s);
 
 #if defined(USING_NAMESPACE_TAM) || defined (USING_TAM_STRINGS) ///{{{
     typedef tam_stringbuilder_t StringBuilder;
@@ -263,6 +266,9 @@ void tam_sb_deallocate(tam_stringbuilder_t *sb);
     #define sb_fromslice        tam_sb_fromslice
     #define sb_fromchars        tam_sb_fromchars
     #define sb_deallocate       tam_sb_deallocate
+    #define sb_concat           tam_sb_concat
+    #define sb_appendslice      tam_sb_appendslice
+    #define sb_appendchars      tam_sb_appendchars
 #endif // end StringBuilder namespace }}}
 
 // end StringBuilder declarations }}}
@@ -415,38 +421,50 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle) {
 
 // ### StringBuilder implementation {{{
 
-tam_stringbuilder_t *tam_sb_allocate() {
-    return tam_allocate(tam_stringbuilder_t, 1);
+tam_sb_node_t *tam_sb_newnode(tam_slice_t sl) {
+    tam_sb_node_t *node = tam_allocate(tam_stringbuilder_t, 1);
+    node->slice = sl;
+    node->next = NULL;
+    return node;
 }
 
-tam_stringbuilder_t *tam_sb_new() {
-    tam_stringbuilder_t *sb = tam_sb_allocate();
-    sb->slice = (tam_slice_t){.buf = NULL, .len = 0};
-    sb->next = NULL;
-    return sb;
+void tam_sb_deallocate_node(tam_sb_node_t *node) {
+    if (node->next) {
+        tam_sb_deallocate_node(node->next);
+    }
+    tam_deallocate(node);
 }
 
-tam_stringbuilder_t *sb_fromslice(tam_slice_t sl) {
-    tam_stringbuilder_t *sb = tam_sb_allocate();
-    sb->slice = sl;
-    sb->next = NULL;
-    return sb;
-}
-
-tam_stringbuilder_t *sb_fromchars(const char *s) {
-    tam_stringbuilder_t *sb = tam_sb_allocate();
-    sb->slice = tam_slice(s);
-    sb->next = NULL;
-    return sb;
+tam_stringbuilder_t tam_sb_new() {
+    return (tam_stringbuilder_t){.head = NULL, .tail = NULL, .len = 0};
 }
 
 void tam_sb_deallocate(tam_stringbuilder_t *sb) {
-    if (sb == NULL) return;
-    if (sb->next != NULL) {
-        tam_sb_deallocate(sb->next);
-        sb->next = NULL;
+    if (!(sb == NULL || sb->head == NULL)) {
+        tam_sb_deallocate_node(sb->head);
     }
-    tam_deallocate(sb);
+
+    // deinitialize
+    sb->len = 0;
+    sb->head = NULL;
+    sb->tail = NULL;
+}
+
+// Appending
+void tam_sb_appendslice(tam_stringbuilder_t *sb, tam_slice_t sl) {
+    tam_sb_node_t *next = tam_sb_newnode(sl);
+    if (sb->head == NULL) {
+        sb->head = next;
+        sb->tail = next;
+    } else {
+        sb->tail->next = next;
+        sb->tail = next;
+    }
+    sb->len += sl.len;
+}
+
+void tam_sb_appendchars(tam_stringbuilder_t *sb, const char *s) {
+    tam_sb_appendslice(sb, tam_slice(s));
 }
 
 // end StringBuilder implementation }}}
@@ -583,11 +601,38 @@ int tam_test_slices() {
 // ### StringBuilder tests {{{
 int tam_test_stringbuilders () {
     {
-        tam_stringbuilder_t *sb = tam_sb_allocate();
-        assert(sb != NULL);
-        tam_sb_deallocate(sb);
-    }
+        // basic allocation, construction, and deallocation
+        tam_stringbuilder_t sb = tam_sb_new();
+        assert(sb.head == NULL);
+        assert(sb.tail == NULL);
+        assert(sb.len == 0);
+        
+        tam_slice_t sl = tam_slice("Hello");
+        tam_sb_appendslice(&sb, sl);
+        assert(sb.head != NULL);
+        assert(sb.head == sb.tail);
+        assert(sb.head->next == NULL);
+        assert(tam_sl_eqv(sl, sb.head->slice));
+        assert(sb.tail != NULL);
+        assert(sb.len == sl.len);
+        tam_sb_node_t *old_tail = sb.tail;
+    
+        sl = tam_slice(", ");
+        tam_sb_appendslice(&sb, sl);
+        assert(sb.len == sl.len + sb.head->slice.len);
+        assert(sb.head == old_tail);
+        assert(sb.tail != old_tail);
+        assert(sb.head->next == sb.tail);
+        assert(tam_sl_eqv(sl, sb.head->next->slice));
 
+        tam_sb_appendchars(&sb, "world!");
+        assert(sb.len == 13);
+        assert(sb.head == old_tail);
+        assert(sb.tail == sb.head->next->next);
+        assert(tam_sl_eqstr(sb.tail->slice, "world!"));
+        
+        tam_sb_deallocate(&sb);
+    }
 }
 
 int tam_test_strings() {
