@@ -7,7 +7,7 @@ extern "C" {
 
 #include <stdbool.h>
 
-//*** ## Slices *** 
+//*** ## Slice declarations *** {{{
 /*
  * These are non-owning views on string data that store a pointer to the underlying data
  * as well as a length. These are convenient for any string manipulation tasks that do not
@@ -211,14 +211,74 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle);
 #define sl_findstrn tam_sl_findstrn
 #define slice_getline tam_slice_getline
 
-#endif // namespace }}}
+#endif // end slice namespacing }}}
 
-#if defined(TAM_IMPLEMENTATION) || defined(TAM_STRINGS_IMPLEMENTATION) //{{{
+// end Slice declarations}}} 
+
+//*** ## StringBuilder declarations *** {{{
+/*
+ * These are linked lists of slices, used when constructing a string from many smaller parts.
+ * Their methods are prefixed by `sb_`;
+ * String builders are constructed from some initial slice or string using `sb_fromslice` or `sb_fromchars`, 
+ * or from scratch using `sb_new`. Note that these creation methods return pointers.
+ * They can then can be appended to repeatedly using `sb_append`.
+ * A string builder can then be converted to a string (char*) by calling `sb_tochars` on the builder.
+ * The returned char* is heap-allocated and must be freed by the user.
+ * They do not own the string data they contain, but do allocate memory to build a linked list.
+ * The user is responsible for freeing the StringBuilder using sb_free when they are done with it.
+ */
+typedef struct tam_stringbuilder_t {
+    tam_slice_t slice;
+    struct tam_stringbuilder_t *next;
+} tam_stringbuilder_t;
+
+/*
+ * Allocate memory for a StringBuilder
+ */
+tam_stringbuilder_t *tam_sb_allocate();
+
+/*
+ * Create an empty StringBuilder
+ */
+tam_stringbuilder_t *tam_sb_new();
+
+/*
+ * Create a StringBuilder from a slice 
+ */
+tam_stringbuilder_t *tam_sb_fromslice(tam_slice_t sl);
+
+/*
+ * Create a StringBuilder from a char*
+ */
+tam_stringbuilder_t *sb_fromchars(const char *s);
+
+/*
+ * Free a StringBuilder instance
+ */ 
+void tam_sb_deallocate(tam_stringbuilder_t *sb);
+
+#if defined(USING_NAMESPACE_TAM) || defined (USING_TAM_STRINGS) ///{{{
+    typedef tam_stringbuilder_t StringBuilder;
+    #define sb_new              tam_sb_new
+    #define sb_fromslice        tam_sb_fromslice
+    #define sb_fromchars        tam_sb_fromchars
+    #define sb_deallocate       tam_sb_deallocate
+#endif // end StringBuilder namespace }}}
+
+// end StringBuilder declarations }}}
+
+//=======================================================================
+//                          IMPLEMENTATIONS
+//=======================================================================
+
+#if defined(TAM_IMPLEMENTATION) || defined(TAM_STRINGS_IMPLEMENTATION)
 
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
+#include <tam/memory.h>
                                   
+// ### Slice implementation {{{
 /*
  * Helper function to convert an index i into one that can be used in a slice.
  * This handles negative indices to allow python-style wraparound indexing,
@@ -351,8 +411,48 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle) {
     }
     return haystack.len;
 }
+// end Slice implementation }}}
 
-#ifdef TAM_STRINGS_TEST ///{{{
+// ### StringBuilder implementation {{{
+
+tam_stringbuilder_t *tam_sb_allocate() {
+    return tam_allocate(tam_stringbuilder_t, 1);
+}
+
+tam_stringbuilder_t *tam_sb_new() {
+    tam_stringbuilder_t *sb = tam_sb_allocate();
+    sb->slice = (tam_slice_t){.buf = NULL, .len = 0};
+    sb->next = NULL;
+    return sb;
+}
+
+tam_stringbuilder_t *sb_fromslice(tam_slice_t sl) {
+    tam_stringbuilder_t *sb = tam_sb_allocate();
+    sb->slice = sl;
+    sb->next = NULL;
+    return sb;
+}
+
+tam_stringbuilder_t *sb_fromchars(const char *s) {
+    tam_stringbuilder_t *sb = tam_sb_allocate();
+    sb->slice = tam_slice(s);
+    sb->next = NULL;
+    return sb;
+}
+
+void tam_sb_deallocate(tam_stringbuilder_t *sb) {
+    if (sb == NULL) return;
+    if (sb->next != NULL) {
+        tam_sb_deallocate(sb->next);
+        sb->next = NULL;
+    }
+    tam_deallocate(sb);
+}
+
+// end StringBuilder implementation }}}
+
+#ifdef TAM_STRINGS_TEST 
+// ### Slice tests {{{
 int tam_test_slices() {
     {
         tam_slice_t s1 = tam_slice("Hello, world!");
@@ -477,12 +577,36 @@ int tam_test_slices() {
         assert(tam_sl_findstr(sl, "\0") == 0);
         assert(tam_sl_findstr(sl, "") == 0);
     }
-    printf("\x1b[1;32m" "Tests passed!" "\x1b[0m" "\n");
-    return 0;
 }
-#endif // TAM_SLICE_TEST }}}
+// end slice tests }}}
 
-#endif // TAM_STRINGS_IMPLEMENTAION }}}
+// ### StringBuilder tests {{{
+int tam_test_stringbuilders () {
+    {
+        tam_stringbuilder_t *sb = tam_sb_allocate();
+        assert(sb != NULL);
+        tam_sb_deallocate(sb);
+    }
+
+}
+
+int tam_test_strings() {
+    int failure = 0;
+    failure += tam_test_slices();
+    failure += tam_test_stringbuilders(); 
+    if (failure > 0) {
+        printf("\x1b[1;32m" "Tests passed!" "\x1b[0m" "\n");
+        return 0;
+    } else {
+        printf("\x1b[1;31m" "%d tests failed!" "\x1b[0m" "\n", failure);
+        return 1;
+    }
+    return failure;
+}
+// end StringBuilder tests }}}
+#endif // TAM_STRINGS_TEST
+
+#endif // TAM_IMPLEMENTATION
 
 #ifdef __cplusplus
 }
