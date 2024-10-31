@@ -177,7 +177,7 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle);
 #define tam_slice_getline(s) (tam_slice_tok(s, "\r\n"))
 // ### end slice utility functions }}}
 
-#ifdef USING_NAMESPACE_TAM || USING_TAM_STRINGS //{{{
+#if defined(USING_NAMESPACE_TAM) || defined(USING_TAM_STRINGS) //{{{
 
 #define Slice tam_slice_t
 
@@ -211,9 +211,9 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle);
 #define sl_findstrn tam_sl_findstrn
 #define slice_getline tam_slice_getline
 
-#endif //USING_NAMESPACE_TAM || USING_TAM_STRINGS }}}
+#endif // namespace }}}
 
-#ifdef TAM_STRINGS_IMPLEMENTATION //{{{
+#if defined(TAM_IMPLEMENTATION) || defined(TAM_STRINGS_IMPLEMENTATION) //{{{
 
 #include <assert.h>
 #include <ctype.h>
