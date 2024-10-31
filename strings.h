@@ -12,6 +12,20 @@
 // TODO: owning slices, or a different type that acts very similarly
 // that owns its memory.
 //
+// String could either reimplement many of slice's methods, or just
+// require you to cast to a slice.
+// On top of slice's methods, it would also support resizing
+// (probably just appending for now).
+// Since String would own memory, constructing one would always
+// trigger a new heap allocation.
+// Strings would also need to be freed.
+// Casting between them doesn't seem to be possible, since we'd need to
+// either store a capacity along with the string or ensure len = cap
+// Instead, provide a function sslice (or make slice generic?)
+// For the rest, try _Generic, with the String versions just creating a
+// slice and passing to the corresponding slice version
+// a generic indexing function (s_idx) would be good.
+//
 // TODO: things like join, so you can do something like
 // sb_join(const char** elems, size_t num_elems, char* pat);
 //
@@ -28,6 +42,27 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+
+//*** ## String declarations *** {{{
+
+typedef struct tam_string_t {
+    size_t len;
+    size_t cap;
+    char *buf;
+} tam_string_t;
+
+tam_string_t tam_string(const char *buf);
+tam_string_t tam_string_n(const char *buf, size_t n);
+
+#if defined(USING_NAMESPACE_TAM) || defined(USING_TAM_STRINGS) //{{{
+                                                               //
+typedef tam_string_t String;
+#define string       tam_string();
+#define string_n     tam_string_n();
+
+#endif // end String namespacing }}}
+
+// ## end String declarations }}}
 
 //*** ## Slice declarations *** {{{
 /*
@@ -67,6 +102,11 @@ char tam_sl_idx(tam_slice_t s, int64_t i);
  * Construct a slice from a raw char* buf and a length.
  */
 #define tam_slice_n(buf, len) (tam_slice_t){len, buf}
+
+/*
+ * Construct a slice from a String.
+ */
+#define tam_slstr(str) (tam_slice_t){str.len, str.buf}
 
 /*
  * Construct a slice from an existing slice and a start and stop index
@@ -207,9 +247,10 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle);
 #define sl_idx tam_sl_idx
 
 // construction
-#define slice tam_slice
-#define slice_n tam_slice_n
-#define reslice tam_reslice
+#define slice        tam_slice
+#define slstr        tam_slstr
+#define slice_n      tam_slice_n
+#define reslice      tam_reslice
 #define slice_prefix tam_slice_prefix
 #define slice_suffix tam_slice_suffix
 
