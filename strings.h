@@ -11,6 +11,17 @@
 //
 // TODO: owning slices, or a different type that acts very similarly
 // that owns its memory.
+//
+// TODO: things like join, so you can do something like
+// sb_join(const char** elems, size_t num_elems, char* pat);
+//
+// const char* elems[] = {"some", "comma", "separated", "values"};
+// const char* result = sb_join(elems, 4, ",");
+// -- result = "some,comma,separated,values"
+//
+// However, since we know ahead of time the sizes and number,
+// it might just be better to allocate everything in one go and return
+// one of these hypothetical "owning strings".
 
 #ifdef __cplusplus
 extern "C" {
