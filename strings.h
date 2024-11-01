@@ -505,7 +505,7 @@ void tam_sb_deallocate(tam_stringbuilder_t *sb) {
 
 static void tam_sb_grow(tam_stringbuilder_t *sb, size_t newlen) {
     if (newlen <= sb->cap) return; 
-    int newcap = sb->buf == NULL ? TAM_SB_INITIAL_CAPACITY : 2 * sb->cap;
+    size_t newcap = sb->buf == NULL ? TAM_SB_INITIAL_CAPACITY : 2 * sb->cap;
     if (newcap < newlen) newcap = newlen+1;
     sb->buf = tam_reallocate(sb->buf, char, newcap);
     sb->cap = newcap;
@@ -680,6 +680,7 @@ int tam_test_slices() {
         assert(tam_sl_findstr(sl, "\0") == 0);
         assert(tam_sl_findstr(sl, "") == 0);
     }
+    return 0;
 }
 // end slice tests }}}
 
@@ -706,10 +707,10 @@ int tam_test_stringbuilders () {
 
     tam_slice_t next = slice(" Here's another sentence that should cause the buffer to reallocate.");
     tam_sb_appendslice(&sb, next);
-    assert(sb.len == 13 + next.len);
-    assert(sb.cap == 13 + next.len+1);
+    assert((int64_t)sb.len == 13 + next.len);
+    assert((int64_t)sb.cap == 13 + next.len+1);
 
-    const char *sentence = tam_sb_tochars(sb);
+    char *sentence = tam_sb_tochars(sb);
     const char *expected = "Hello, world! Here's another sentence that should cause the buffer to reallocate.";
     assert(strcmp(sentence, expected) == 0);
     tam_deallocate(sentence);
