@@ -537,7 +537,7 @@ void tam_sb_appendf(tam_stringbuilder_t *sb, const char *fmt, ...) {
     // Next, allocated needed memory
     // need to restart va_list as it becomes invalidated after vsnprintf
     va_start(va, fmt);
-    tam_sb_grow(sb, sb->len + size);
+    tam_sb_grow(sb, sb->len + size + 1);
     // finally, print formatted string to newly-allocated memory and increment length
     vsprintf(sb->buf + sb->len, fmt, va);
     sb->len += size;
