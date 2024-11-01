@@ -289,11 +289,6 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle);
  * The user is responsible for freeing the StringBuilder using sb_deallocate when they are done with it.
  */
 
-// TODO: contingent on above change, allow for formatted appending, like
-//      tam_sb_appendf(&sb, "My name is %s and I am %d years old", "Thomas", 29);
-//      The memory can be allocated into our internal buffer and can then be freed with everything
-//      this could be replaced with a general arena allocator down the line
-
 typedef struct tam_stringbuilder_t {
     char *buf;
     size_t len;
@@ -509,14 +504,9 @@ void tam_sb_deallocate(tam_stringbuilder_t *sb) {
 }
 
 static void tam_sb_grow(tam_stringbuilder_t *sb, size_t newlen) {
-    if (sb->buf == NULL) {
-        sb->cap = TAM_SB_INITIAL_CAPACITY;
-        sb->buf = tam_allocate(char, sb->cap);
-        return;
-    }
     if (newlen <= sb->cap) return; 
-    size_t newcap = 2*sb->cap;
-    if (newcap < newlen) newcap = newlen;
+    int newcap = sb->buf == NULL ? TAM_SB_INITIAL_CAPACITY : 2 * sb->cap;
+    if (newcap < newlen) newcap = newlen+1;
     sb->buf = tam_reallocate(sb->buf, char, newcap);
     sb->cap = newcap;
 }
@@ -535,6 +525,24 @@ void tam_sb_appendslice(tam_stringbuilder_t *sb, tam_slice_t sl) {
 
 void tam_sb_appendchars(tam_stringbuilder_t *sb, const char *s) {
     tam_sb_appendcharsn(sb, s, strlen(s));
+}
+
+void tam_sb_appendf(tam_stringbuilder_t *sb, const char *fmt, ...) {
+    va_list va;
+    va_start(va, fmt);
+    // first, determine size
+    int size = vsnprintf(NULL, 0, fmt, va);
+    va_end(va);
+
+    // Next, allocated needed memory
+    // need to restart va_list as it becomes invalidated after vsnprintf
+    va_start(va, fmt);
+    tam_sb_grow(sb, sb->len + size);
+    // finally, print formatted string to newly-allocated memory and increment length
+    vsprintf(sb->buf + sb->len, fmt, va);
+    sb->len += size;
+
+    va_end(va);
 }
 
 // string creation
@@ -683,12 +691,12 @@ int tam_test_stringbuilders () {
     assert(sb.len == 0);
     assert(sb.cap == 0);
 
-    tam_sb_appendchars(&sb, "Hello");
+    tam_sb_appendcharsn(&sb, "Hello", 5);
     assert(sb.buf != NULL);
     assert(sb.cap == TAM_SB_INITIAL_CAPACITY);
     assert(sb.len == 5);
 
-    tam_sb_appendchars(&sb, ", ");
+    tam_sb_appendf(&sb, "%s", ", ");
     assert(sb.cap == TAM_SB_INITIAL_CAPACITY);
     assert(sb.len == 7);
 
@@ -699,7 +707,7 @@ int tam_test_stringbuilders () {
     tam_slice_t next = slice(" Here's another sentence that should cause the buffer to reallocate.");
     tam_sb_appendslice(&sb, next);
     assert(sb.len == 13 + next.len);
-    assert(sb.cap == 13 + next.len);
+    assert(sb.cap == 13 + next.len+1);
 
     const char *sentence = tam_sb_tochars(sb);
     const char *expected = "Hello, world! Here's another sentence that should cause the buffer to reallocate.";
