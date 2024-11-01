@@ -64,7 +64,7 @@ typedef tam_string_t String;
 
 // ## end String declarations }}}
 
-//*** ## Slice declarations *** {{{
+//*** ## Slice declarations *** {{
 /*
  * These are non-owning views on string data that store a pointer to the underlying data
  * as well as a length. These are convenient for any string manipulation tasks that do not
@@ -266,7 +266,7 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle);
 #define slice_strip tam_slice_strip
 #define sl_cspan tam_sl_cspan 
 #define sl_span tam_sl_span
-#define slice_tok tam_sl_tok
+#define slice_tok tam_slice_tok
 #define sl_startswith tam_sl_startswith
 #define sl_starswithstr tam_sl_startswithstr
 #define sl_find tam_sl_find
@@ -280,26 +280,24 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle);
 
 //*** ## StringBuilder declarations *** {{{
 /*
- * These are linked lists of slices, used when constructing a string from many smaller parts.
- * Their methods are prefixed by `sb_`;
- * String builders are constructed from some initial slice or string using `sb_fromslice` or `sb_fromchars`, 
- * or from scratch using `sb_new`. Note that these creation methods return pointers.
- * They can then can be appended to repeatedly using `sb_append[slice/chars]`.
+ * String builders are constructed using the sb_new function. 
+ * They can then can be appended to repeatedly using `sb_append[slice/chars/charsn]`.
  * A string builder can then construct a string (char*) by calling `sb_tochars` on the builder.
  * The returned char* is heap-allocated and must be freed by the user.
- * They do not own the string data they contain, but do allocate memory to build a linked list.
+ * The StrinBbuilder copies all data passed to it into an internal buffer, so the user is free to do whatever
+ * they want with the data passed to the stringbuilder after they have done so.
  * The user is responsible for freeing the StringBuilder using sb_deallocate when they are done with it.
  */
 
-typedef struct tam_sb_node_t {
-    tam_slice_t slice;
-    struct tam_sb_node_t *next;
-} tam_sb_node_t;
+// TODO: contingent on above change, allow for formatted appending, like
+//      tam_sb_appendf(&sb, "My name is %s and I am %d years old", "Thomas", 29);
+//      The memory can be allocated into our internal buffer and can then be freed with everything
+//      this could be replaced with a general arena allocator down the line
 
 typedef struct tam_stringbuilder_t {
-    int64_t len;
-    struct tam_sb_node_t *head;
-    struct tam_sb_node_t *tail;
+    char *buf;
+    size_t len;
+    size_t cap;
 } tam_stringbuilder_t;
 
 /*
@@ -312,7 +310,6 @@ tam_stringbuilder_t tam_sb_new();
  */ 
 void tam_sb_deallocate(tam_stringbuilder_t *sb);
 
-
 /*
  * Append a slice to a StringBuilder
  */
@@ -322,6 +319,16 @@ void tam_sb_appendslice(tam_stringbuilder_t *sb, tam_slice_t sl);
  * Append a char array to a StringBuilder
  */
 void tam_sb_appendchars(tam_stringbuilder_t *sb, const char* s);
+
+/*
+ * Append a char array with known length to a StringBuilder
+ */
+void tam_sb_appendcharsn(tam_stringbuilder_t *sb, const char *s, size_t n);
+
+/*
+ * Append a formatted string to StringBuilder
+ */
+void tam_sb_appendf(tam_stringbuilder_t *sb, const char *fmt, ...);
 
 /*
  * Construct a char array from a Stringbuilder
@@ -334,6 +341,8 @@ char *tam_sb_tochars(tam_stringbuilder_t sb);
     #define sb_deallocate       tam_sb_deallocate
     #define sb_appendslice      tam_sb_appendslice
     #define sb_appendchars      tam_sb_appendchars
+    #define sb_appendcharsn     tam_sb_appendcharsn
+    #define sb_appendf          tam_sb_appendf
     #define sb_tochars          tam_sb_tochars
 #endif // end StringBuilder namespace }}}
 
@@ -487,70 +496,57 @@ int64_t tam_sl_find(tam_slice_t haystack, tam_slice_t needle) {
 
 // ### StringBuilder implementation {{{
 
-tam_sb_node_t *tam_sb_newnode(tam_slice_t sl) {
-    tam_sb_node_t *node = tam_allocate(tam_stringbuilder_t, 1);
-    node->slice = sl;
-    node->next = NULL;
-    return node;
-}
-
-void tam_sb_deallocate_node(tam_sb_node_t *node) {
-    if (node->next) {
-        tam_sb_deallocate_node(node->next);
-    }
-    tam_deallocate(node);
-}
+#define TAM_SB_INITIAL_CAPACITY 16
 
 tam_stringbuilder_t tam_sb_new() {
-    return (tam_stringbuilder_t){.head = NULL, .tail = NULL, .len = 0};
+    return (tam_stringbuilder_t){.cap=0, .len=0, .buf=NULL};
 }
 
 void tam_sb_deallocate(tam_stringbuilder_t *sb) {
-    if (!(sb == NULL || sb->head == NULL)) {
-        tam_sb_deallocate_node(sb->head);
-    }
-
-    // deinitialize
+    tam_deallocate(sb->buf);
+    sb->cap = 0;
     sb->len = 0;
-    sb->head = NULL;
-    sb->tail = NULL;
+}
+
+static void tam_sb_grow(tam_stringbuilder_t *sb, size_t newlen) {
+    if (sb->buf == NULL) {
+        sb->cap = TAM_SB_INITIAL_CAPACITY;
+        sb->buf = tam_allocate(char, sb->cap);
+        return;
+    }
+    if (newlen <= sb->cap) return; 
+    size_t newcap = 2*sb->cap;
+    if (newcap < newlen) newcap = newlen;
+    sb->buf = tam_reallocate(sb->buf, char, newcap);
+    sb->cap = newcap;
 }
 
 // Appending
+void tam_sb_appendcharsn(tam_stringbuilder_t *sb, const char *s, size_t n) {
+    size_t newlen = sb->len + n;
+    tam_sb_grow(sb, newlen);
+    memcpy(sb->buf + sb->len, s, n);
+    sb->len = newlen;
+}
+
 void tam_sb_appendslice(tam_stringbuilder_t *sb, tam_slice_t sl) {
-    tam_sb_node_t *next = tam_sb_newnode(sl);
-    if (sb->head == NULL) {
-        sb->head = next;
-        sb->tail = next;
-    } else {
-        sb->tail->next = next;
-        sb->tail = next;
-    }
-    sb->len += sl.len;
+    tam_sb_appendcharsn(sb, sl.buf, sl.len);
 }
 
 void tam_sb_appendchars(tam_stringbuilder_t *sb, const char *s) {
-    tam_sb_appendslice(sb, tam_slice(s));
+    tam_sb_appendcharsn(sb, s, strlen(s));
 }
 
 // string creation
 char *tam_sb_tochars(tam_stringbuilder_t sb) {
     char *buf = tam_allocate(char, sb.len + 1);
-    tam_sb_node_t *node = sb.head;
-
-    int index = 0;
-    while (node) {
-        memcpy(&buf[index], node->slice.buf, node->slice.len);
-        index += node->slice.len;
-        node = node->next;
-    }
-
+    memcpy(buf, sb.buf, sb.len * sizeof(char));
     return buf;
 }
 
 // end StringBuilder implementation }}}
 
-#ifdef TAM_STRINGS_TEST 
+#if defined(TAM_INCLUDE_TESTS) || defined(TAM_STRINGS_TEST)
 // ### Slice tests {{{
 int tam_test_slices() {
     {
@@ -681,51 +677,49 @@ int tam_test_slices() {
 
 // ### StringBuilder tests {{{
 int tam_test_stringbuilders () {
-    {
-        // basic allocation, construction, and deallocation
-        tam_stringbuilder_t sb = tam_sb_new();
-        assert(sb.head == NULL);
-        assert(sb.tail == NULL);
-        assert(sb.len == 0);
-        
-        tam_slice_t sl = tam_slice("Hello");
-        tam_sb_appendslice(&sb, sl);
-        assert(sb.head != NULL);
-        assert(sb.head == sb.tail);
-        assert(sb.head->next == NULL);
-        assert(tam_sl_eqv(sl, sb.head->slice));
-        assert(sb.tail != NULL);
-        assert(sb.len == sl.len);
-        tam_sb_node_t *old_tail = sb.tail;
-    
-        sl = tam_slice(", ");
-        tam_sb_appendslice(&sb, sl);
-        assert(sb.len == sl.len + sb.head->slice.len);
-        assert(sb.head == old_tail);
-        assert(sb.tail != old_tail);
-        assert(sb.head->next == sb.tail);
-        assert(tam_sl_eqv(sl, sb.head->next->slice));
+    // basic allocation, construction, and deallocation
+    tam_stringbuilder_t sb = tam_sb_new();
+    assert(sb.buf == NULL);
+    assert(sb.len == 0);
+    assert(sb.cap == 0);
 
-        tam_sb_appendchars(&sb, "world!");
-        assert(sb.len == 13);
-        assert(sb.head == old_tail);
-        assert(sb.tail == sb.head->next->next);
-        assert(tam_sl_eqstr(sb.tail->slice, "world!"));
+    tam_sb_appendchars(&sb, "Hello");
+    assert(sb.buf != NULL);
+    assert(sb.cap == TAM_SB_INITIAL_CAPACITY);
+    assert(sb.len == 5);
 
-        const char *result = tam_sb_tochars(sb);
-        sl = tam_slice_n(result, sb.len);
-        assert(sl_eqstr(sl, "Hello, world!"));
+    tam_sb_appendchars(&sb, ", ");
+    assert(sb.cap == TAM_SB_INITIAL_CAPACITY);
+    assert(sb.len == 7);
 
-        tam_sb_deallocate(&sb);
-        tam_deallocate(result);
-    }
+    tam_sb_appendchars(&sb, "world!");
+    assert(sb.cap == TAM_SB_INITIAL_CAPACITY);
+    assert(sb.len == 13);
+
+    tam_slice_t next = slice(" Here's another sentence that should cause the buffer to reallocate.");
+    tam_sb_appendslice(&sb, next);
+    assert(sb.len == 13 + next.len);
+    assert(sb.cap == 13 + next.len);
+
+    const char *sentence = tam_sb_tochars(sb);
+    const char *expected = "Hello, world! Here's another sentence that should cause the buffer to reallocate.";
+    assert(strcmp(sentence, expected) == 0);
+    tam_deallocate(sentence);
+
+    tam_sb_deallocate(&sb);
+    assert(sb.buf == NULL);
+    assert(sb.len == 0);
+    assert(sb.cap == 0);
+    return 0;
 }
+
+// end StringBuilder tests }}}
 
 int tam_test_strings() {
     int failure = 0;
     failure += tam_test_slices();
     failure += tam_test_stringbuilders(); 
-    if (failure > 0) {
+    if (failure == 0) {
         printf("\x1b[1;32m" "Tests passed!" "\x1b[0m" "\n");
         return 0;
     } else {
@@ -734,7 +728,6 @@ int tam_test_strings() {
     }
     return failure;
 }
-// end StringBuilder tests }}}
 #endif // TAM_STRINGS_TEST
 
 #endif // TAM_IMPLEMENTATION
