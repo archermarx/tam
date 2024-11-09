@@ -351,6 +351,7 @@ char *tam_sb_tochars(tam_stringbuilder_t sb);
 
 #include <assert.h>
 #include <ctype.h>
+#include <stdarg.h>
 #include <string.h>
 #include <tam/memory.h>
                                   
