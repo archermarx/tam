@@ -43,27 +43,6 @@ extern "C" {
 
 #include <tam/types.h>
 
-//*** ## String declarations *** {{{
-
-typedef struct tam_string_t {
-  usize len;
-  usize cap;
-  char *buf;
-} tam_string_t;
-
-tam_string_t tam_string(const char *buf);
-tam_string_t tam_string_n(const char *buf, usize n);
-
-#if defined(USING_NAMESPACE_TAM) || defined(USING_TAM_STRINGS) //{{{
-                                                               //
-typedef tam_string_t String;
-#define string tam_string();
-#define string_n tam_string_n();
-
-#endif // end String namespacing }}}
-
-// ## end String declarations }}}
-
 //*** ## Slice declarations *** {{
 /*
  * These are non-owning views on string data that store a pointer to the underlying data
@@ -238,6 +217,9 @@ i64 tam_sl_find(tam_slice_t haystack, tam_slice_t needle);
  * Read a line from the input slice, stripping newlines
  */
 #define tam_slice_getline(s) (tam_slice_tok(s, "\r\n"))
+
+u64 tam_sl_hash(tam_slice_t s);
+
 // ### end slice utility functions }}}
 
 #if defined(USING_NAMESPACE_TAM) || defined(USING_TAM_STRINGS) //{{{
@@ -274,6 +256,7 @@ i64 tam_sl_find(tam_slice_t haystack, tam_slice_t needle);
 #define sl_findstr tam_sl_findstr
 #define sl_findstrn tam_sl_findstrn
 #define slice_getline tam_slice_getline
+#define sl_hash tam_sl_hash
 
 #endif // end slice namespacing }}}
 
@@ -489,6 +472,16 @@ i64 tam_sl_find(tam_slice_t haystack, tam_slice_t needle) {
   }
   return haystack.len;
 }
+
+u64 tam_sl_hash(tam_slice_t s) {
+  u64 h = 0x100;
+  for (isize i = 0; i < s.len; i++) {
+    h ^= s.buf[i];
+    h *= 1111111111111111111u;
+  }
+  return h;
+}
+
 // end Slice implementation }}}
 
 // ### StringBuilder implementation {{{

@@ -49,7 +49,6 @@ typedef tam_arena_t arena_t;
 #define arena_grow_arr tam_arena_grow_arr
 #endif // namespace }}}
 
-#define TAM_IMPLEMENTATION
 #if defined(TAM_IMPLEMENTATION) || defined(TAM_MEMORY_IMPLEMENTATION) ///{{{
 
 #include <stdio.h>
@@ -93,11 +92,11 @@ void *TAM_arena_allocate(tam_arena_t *a, isize size, isize align, isize count) {
   isize padding = -(uintptr_t)a->ptr & (align - 1);
   isize available = end - a->ptr - padding;
   if (available < 0 || count > available / size) {
-    tam_errorf("arena allocation failed -- out of memory");
+    tam_errorf("arena allocation of size %lu failed -- out of memory", alloc);
   }
   void *p = a->ptr + padding;
   a->ptr += padding + alloc;
-  return memset(p, 0, alloc);
+  return p;
 }
 
 void *TAM_arena_reallocate(tam_arena_t *a, void *ptr, isize size, isize align, isize count, isize new_count) {
