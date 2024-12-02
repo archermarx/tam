@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <tam/string.h>
+#include <tam/slices.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,8 +29,8 @@ typedef struct tam_map {
 void tam_init_map(tam_map *map);
 void tam_free_map(tam_map *map);
 
-bool tam_map_set(tam_map *map, const tam_str key, tam_any val);
-bool tam_map_get(tam_map *map, const tam_str key, tam_any *val);
+bool tam_map_set(tam_map *map, const tam_slice_t key, tam_any val);
+bool tam_map_get(tam_map *map, const tam_slice_t key, tam_any *val);
 
 /*** Implementation ***/
 #ifdef TAM_MAP_IMPLEMENTATION
